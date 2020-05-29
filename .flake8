@@ -1,0 +1,25 @@
+[flake8]
+## VERBOSITY ##
+verbose = 1
+quiet = 0
+
+## PARALLEL ##
+jobs = auto
+
+## FORMAT ##
+show-source = True
+count = True
+statistics = True
+
+## FILE PATTERNS ##
+exclude = .git, __pycache__
+filename = *.py
+
+## OPTIONS ##
+disable-noqa = False
+max-complexity = 10
+max-line-length = 100
+ignore = ANN101, D200, D401, WPS306
+
+## CUSTOM IGNORE OPTIONS ##
+per-file-ignores = tests/*:S101, WPS442, WPS110
