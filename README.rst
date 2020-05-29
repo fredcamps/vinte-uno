@@ -20,7 +20,7 @@ Vinte Uno
 
 
 
-A simple blackjack game mande in Python3
+A simple blackjack game made in Python3
 
 
 * Free software: GNU General Public License v3

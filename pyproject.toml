@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "vinte_uno"
 version = "0.1.0"
-description = "A simple blackjack game mande in Python3"
+description = "A simple blackjack game made in Python3"
 authors = ["Fred Campos <fred.tecnologia@gmail.com>"]
 
 [tool.poetry.dependencies]
