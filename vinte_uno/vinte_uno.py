@@ -2,7 +2,8 @@
 This module contains the core functionality of this program.
 """
 import random
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
+from collections import Counter
 from typing import Dict, Iterator, List, NamedTuple, Set, Tuple
 
 from transitions import Machine
@@ -31,12 +32,6 @@ HIT_STATES = (
     STARTED,
     EXPOSED,
 )
-# OUT_OF_ROUND_STATES = (
-#     STAYED,
-#     BUSTED,
-#     TWENTY_ONE,
-#     HIDING,
-# )
 GAMBLER_STATES = (
     READY_TO_GAME,
     GAMING,
@@ -76,7 +71,7 @@ class Cards:
     def __init__(self) -> None:
         """Initializes Cards class.
         """
-        self.suits: Set[str] = {'spades', 'clubs', 'diamond', 'hearts'}
+        self.suits: Set[str] = {'spades', 'clubs', 'diamonds', 'hearts'}
         self.ranks: Set[Tuple[str, int]] = {
             ('ace', 1),
             ('2', 2),
@@ -152,10 +147,10 @@ class Player(Machine, metaclass=ABCMeta):  # noqa: H601
         :param amount: amount of credits on player account
         """
         super().__init__(model=self, states=list(self.states), initial=self.states[0])
-        self.name = name
+        self.name: str = name
         self.cards: Set[Card] = set()
-        self.credit = credit
-        self.amount = amount
+        self.credit: int = credit
+        self.amount: int = amount
 
     @property
     def hand(self) -> int:
@@ -215,13 +210,23 @@ class Player(Machine, metaclass=ABCMeta):  # noqa: H601
         """
         return self.hand > TWENTY_ONE_RANK_POINTS
 
+    @abstractmethod
+    def after_bust(self) -> None:
+        """Event dispatched after bust trigger.
+
+        Event method that be overriden by child classes.
+
+        :raises NotImplementedError: Should be overriden
+        """
+        raise NotImplementedError
+
 
 class Gambler(Player):
     """Class that represents gambler."""
 
     states: Tuple[str, ...] = GAMBLER_STATES
 
-    def __init__(self, name: str = 'Gambler', credit: int = 1) -> None:
+    def __init__(self, name: str, credit: int = 1) -> None:
         """Initializes dealer class.
 
         :param name: Player name
@@ -240,7 +245,8 @@ class Gambler(Player):
             trigger='win',
             source=GAMING,
             dest=TWENTY_ONE,
-            conditions=['should_twenty_one'],
+            conditions=['should_win'],
+            after=['after_win'],
         )
         self.add_transition(trigger='stay', source=GAMING, dest=STAYED)
         self.add_transition(
@@ -248,16 +254,8 @@ class Gambler(Player):
             source=GAMING,
             dest=BUSTED,
             conditions=['should_bust'],
+            after=['after_bust'],
         )
-
-    def add_bet(self, credit: int) -> None:
-        """Trigger method that starts a bet transition.
-
-        :param credit: A number of bet credits
-        :type credit: int
-        """
-        self.credit = credit
-        self.bet()
 
     def should_play(self) -> bool:
         """Condition for play trigger.
@@ -270,13 +268,23 @@ class Gambler(Player):
         """
         return bool(self.cards)
 
-    def should_twenty_one(self) -> bool:
-        """Condition for twenty_one trigger.
+    def should_win(self) -> bool:
+        """Condition for win(twenty_one) trigger succeds.
 
         :return: A boolean value that satisfy condition or not
         :rtype: bool
         """
         return self.hand == TWENTY_ONE_RANK_POINTS
+
+    def after_bust(self) -> None:
+        """Event dispatched after the gambler busts.
+        """
+        self.credit -= self.credit
+
+    def after_win(self) -> None:
+        """Event dispatched after the gambler get 21 points.
+        """
+        self.credit += self.credit
 
 
 class Dealer(Player):
@@ -284,16 +292,18 @@ class Dealer(Player):
 
     states: Tuple[str, ...] = DEALER_STATES
 
-    def __init__(self, name: str = 'Dealer', credit: int = 1) -> None:
+    def __init__(self, gamblers: List[Gambler], name: str = 'Dealer', credit: int = 1) -> None:
         """Initializes dealer class.
 
+        :param gamblers: List containing gamblers of the round.
         :param name: Player name
         :param credit: Represents bet value
+        :type gamblers: List[Gambler]
         :type name: str
+        :type credit: int
         """
         super().__init__(name=name, credit=credit)
-        self.credit: int = credit
-        self.gamblers: Set[Gambler] = set()
+        self.gamblers: List[Gambler] = gamblers
         self.deck: Deck = Deck()
         self.add_transition(
             trigger='deal',
@@ -320,46 +330,43 @@ class Dealer(Player):
             source=EXPOSED,
             dest=BUSTED,
             conditions=['should_bust'],
+            after=['after_bust'],
         )
         self.add_transition(
             trigger='stay',
             source=EXPOSED,
             dest=STAYED,
             conditions=['should_stay'],
+            after=['after_stay'],
         )
 
-    def _hit_for_gamblers(self, gamblers: Set[Gambler]) -> None:
-        for gambler in gamblers:
+    def _hit(self) -> None:
+        for gambler in self.gamblers:
             gambler.hit(deck=self.deck)
-            if gambler.state == GAMING:
+            if gambler.state != GAMING:
+                continue
+
+            if gambler.hand > TWENTY_ONE_RANK_POINTS:
                 gambler.bust()
+
+            if gambler.hand == TWENTY_ONE_RANK_POINTS:
                 gambler.win()
+                gambler.credit += self.credit
+                self.credit -= self.credit
 
-        self.gamblers.update(gamblers)
-
-    def turn(self, gamblers: Set[Gambler]) -> None:
-        """Players hits a card and turns.
-
-        :param gamblers: A set that contains gamblers
-        :type gamblers: Set[Gambler]
-        """
-        self._hit_for_gamblers(gamblers)
         self.hit(deck=self.deck)
+
+    def turn(self) -> None:
+        """Players hits a card and turns.
+        """
+        self._hit()
         states = {
             'DEAL_PENDING': self.deal,
             'STARTED': self.hide,
             'HIDING': self.expose,
-            'EXPOSED': (self.bust, self.stay),
+            'EXPOSED': self.bust if self.hand > TWENTY_ONE_RANK_POINTS else self.stay,
         }
-        callable_trigger = states.get(self.state)
-        if isinstance(callable_trigger, tuple) and self.hand > TWENTY_ONE_RANK_POINTS:
-            callable_trigger[0]()
-            return
-        if isinstance(callable_trigger, tuple) and self.hand >= DEALER_RANK_POINTS_LIMIT:
-            callable_trigger[1]()
-            return
-
-        callable_trigger()
+        states.get(self.state)()
 
     def should_deal(self) -> bool:
         """Condition for run deal trigger on state machine.
@@ -379,6 +386,15 @@ class Dealer(Player):
         for gambler in self.gamblers:
             gambler.play()
 
+    def after_bust(self) -> None:
+        """Event that runs after dealer busts.
+
+        All in-game gamblers earns the double bet.
+        """
+        for gambler in self.gamblers:
+            if gambler.state not in {BUSTED, TWENTY_ONE}:
+                gambler.credit += gambler.credit
+
     def after_expose(self) -> None:
         """Event that runs after expose trigger.
 
@@ -386,18 +402,31 @@ class Dealer(Player):
         """
         self.stay()
 
+    def after_stay(self) -> None:
+        """Event that runs after dealer stays.
+
+        The most scored in-game gambler earns the double bet.
+        """
+        gamblers = [gamblr for gamblr in self.gamblers if gamblr.state == STAYED]
+        if not gamblers:
+            return
+
+        max_score = max(gamblers, key=lambda element: element.hand).hand
+        self.gamblers = list(set(self.gamblers) - set(gamblers))
+        for idx, gambler in enumerate(gamblers):
+            if gambler.hand == max_score and max_score > self.hand:
+                gamblers[idx].credit += gambler.credit
+
+        self.gamblers += gamblers
+        self.gamblers.sort(key=lambda element: element.name)
+
     def should_hide(self) -> bool:
         """Condition for hide the last dealer card.
 
         :return: Condition for apply transition
         :rtype: bool
         """
-        more_than_one = len(self.cards) > 1
-        for gambler in self.gamblers:
-            if gambler.state != GAMING or len(gambler.cards) <= 1:
-                return False
-
-        return more_than_one
+        return len(self.cards) > 1
 
     def should_expose(self) -> bool:
         """Condition for expose all dealer cards.
@@ -405,24 +434,26 @@ class Dealer(Player):
         :return: Condition for apply transition
         :rtype: bool
         """
-        someone_stayed = False
         for gambler in self.gamblers:
             if gambler.state == GAMING:
                 return False
-            if gambler.state == STAYED:
-                someone_stayed = True
 
-        return someone_stayed
+        return True
 
     def should_stay(self) -> bool:
-        """Condition for dealer stays.
+        """Conditions for dealer stays.
 
         :return: Condition for apply transition
         :rtype: bool
         """
         first_condition = (self.hand >= DEALER_RANK_POINTS_LIMIT)
         second_condition = (self.hand <= TWENTY_ONE_RANK_POINTS)
-        return first_condition and second_condition
+        third_condition = True
+        for gambler in self.gamblers:
+            if gambler.state == STAYED:
+                third_condition = False
+
+        return second_condition if first_condition else third_condition
 
     def show(self) -> List[Dict[str, object]]:
         """Show cards on hand.
@@ -435,25 +466,3 @@ class Dealer(Player):
             return [cards[0]]
 
         return cards
-
-
-class Match(Machine):
-    """Class that represents a round/match."""
-
-    states: Tuple[str, ...] = MATCH_STATES
-
-    def __init__(self) -> None:
-        """Initializes the match class."""
-        super().__init__(model=self, states=self.states, initial=self.states[0])
-        # self.add_transition(trigger='')
-        # self.add_transition(trigger='')
-        # self.add_transition(trigger='')
-
-    def start(self, gamblers: Set[Gambler], dealer: Dealer) -> None:
-        """Starts the round.
-
-        :param gamblers: A set of gamblers that will play the game.
-        :param dealer: The dealer object.
-        :type gamblers: Set[Gambler]
-        :type dealer: Dealer
-        """

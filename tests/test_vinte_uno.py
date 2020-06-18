@@ -1,6 +1,6 @@
 """Tests for `vinte_uno` package."""
 # pylint: disable=redefined-outer-name
-from typing import Dict, Tuple
+from typing import Dict, List
 
 import pytest
 import pytest_mock
@@ -21,17 +21,17 @@ def fixture_deck() -> Dict[str, int]:
 
 
 @pytest.fixture()
-def fixture_gamblers() -> Tuple[vinte_uno.Gambler, ...]:
+def fixture_gamblers() -> List[vinte_uno.Gambler]:
     """Returns a set of Gambler objects.
 
     :return: a tuple of 3 Gambler objects.
-    :rtype: Tuple[vinte_uno.Gambler]
+    :rtype: List[vinte_uno.Gambler]
     """
-    return (
-        vinte_uno.Gambler(credit=1),
-        vinte_uno.Gambler(credit=1),
-        vinte_uno.Gambler(credit=1),
-    )
+    return [
+        vinte_uno.Gambler(credit=1, name='Gambler 1'),
+        vinte_uno.Gambler(credit=1, name='Gambler 2'),
+        vinte_uno.Gambler(credit=1, name='Gambler 3'),
+    ]
 
 
 @pytest.fixture()
@@ -49,6 +49,19 @@ def fixture_hand(mocker: pytest_mock.plugin.MockFixture) -> pytest_mock.plugin.M
         'hand',
         new_callable=mocker.PropertyMock,
     )
+
+
+@pytest.fixture()
+def fixture_deck_pick(mocker: pytest_mock.plugin.MockFixture) -> pytest_mock.plugin.MockFixture:
+    """Fixture containing Deck pick mocked.
+
+    :param mocker: Mock fixture
+    :type: pytest_mock.plugin.MockFIxture
+
+    :return: Fixture containing hand fixture
+    :rtype: pytest_mock.plugin.MockFIxture
+    """
+    return mocker.patch.object(vinte_uno.Deck, 'pick')
 
 
 def test_deck_should_arranged_properly(fixture_deck: Dict[str, int]) -> None:
@@ -94,11 +107,11 @@ def test_player_should_not_hit() -> None:
     """Test if player should not hit.
     """
     deck = vinte_uno.Deck()
-    gambler = vinte_uno.Gambler()
+    gambler = vinte_uno.Gambler(name='Gambler')
     gambler.state = vinte_uno.GAMING
     gambler.state = vinte_uno.STAYED
     gambler.hit(deck=deck)
-    dealer = vinte_uno.Dealer()
+    dealer = vinte_uno.Dealer(gamblers=[gambler])
     dealer.state = vinte_uno.HIDING
     dealer.hit(deck=deck)
 
@@ -109,7 +122,7 @@ def test_player_should_not_hit() -> None:
 def test_gambler_should_play_game() -> None:
     """Test if gambler should change from ready to game to gaming state.
     """
-    gambler = vinte_uno.Gambler()
+    gambler = vinte_uno.Gambler(name='Gambler')
     previous = gambler.state
     gambler.hit(deck=vinte_uno.Deck())
     gambler.play()
@@ -121,7 +134,7 @@ def test_gambler_should_play_game() -> None:
 def test_gambler_should_not_play_game() -> None:
     """Test if gambler should not change from ready to game to gaming state.
     """
-    gambler = vinte_uno.Gambler()
+    gambler = vinte_uno.Gambler(name='Gambler')
     gambler.play()
 
     assert gambler.state == vinte_uno.READY_TO_GAME
@@ -134,18 +147,19 @@ def test_gambler_should_bust(fixture_hand: pytest_mock.plugin.MockFixture) -> No
     :type fixture_hand: pytest_mock.plugin.MockFixture
     """
     fixture_hand.return_value = 22
-    gambler = vinte_uno.Gambler()
+    gambler = vinte_uno.Gambler(name='Gambler')
     gambler.state = vinte_uno.GAMING
     gambler.bust()
 
     assert gambler.state == vinte_uno.BUSTED
+    assert gambler.credit == 0
 
 
 def test_gambler_should_not_bust() -> None:
     """Test if gambler should not bust.
 
     """
-    gambler = vinte_uno.Gambler()
+    gambler = vinte_uno.Gambler(name='Gambler')
     gambler.state = vinte_uno.GAMING
     gambler.bust()
 
@@ -160,18 +174,18 @@ def test_gambler_should_tweenty_one(fixture_hand: pytest_mock.plugin.MockFixture
 
     """
     fixture_hand.return_value = 21
-    gambler = vinte_uno.Gambler()
+    gambler = vinte_uno.Gambler(name='Gambler')
     gambler.state = vinte_uno.GAMING
     gambler.win()
 
     assert gambler.state == vinte_uno.TWENTY_ONE
-
+    assert gambler.credit > 1
 
 def test_gambler_should_not_tweenty_one() -> None:
     """Test if gambler should not win the match with 21 rank points.
 
     """
-    gambler = vinte_uno.Gambler()
+    gambler = vinte_uno.Gambler(name='Gambler')
     gambler.state = vinte_uno.GAMING
     gambler.win()
 
@@ -179,9 +193,9 @@ def test_gambler_should_not_tweenty_one() -> None:
 
 
 def test_gambler_should_stay() -> None:
-    """Test if gamble should stays.
+    """Test if gambler should stays.
     """
-    gambler = vinte_uno.Gambler()
+    gambler = vinte_uno.Gambler(name='Gambler')
     gambler.state = vinte_uno.GAMING
     gambler.stay()
 
@@ -190,158 +204,132 @@ def test_gambler_should_stay() -> None:
     assert result == vinte_uno.STAYED
 
 
-def test_dealer_turn_should_deal(fixture_gamblers: Tuple[vinte_uno.Gambler, ...]) -> None:
-    """Test if all dealer turn should deal.
-
-    :param fixture_gamblers: A tuple with gambler objects in initial state
-    :type fixture_gamblers: Tuple[vinte_uno.Gambler, ...]
-    """
-    gamblers = fixture_gamblers
-    dealer = vinte_uno.Dealer()
-
-    assert all(gambler.state == vinte_uno.READY_TO_GAME for gambler in gamblers)
-    assert dealer.state == vinte_uno.DEAL_PENDING
-
-    dealer.turn(gamblers=set(gamblers))
-
-    assert all(gambler.state == vinte_uno.GAMING for gambler in gamblers)
-    assert dealer.state == vinte_uno.STARTED
-
-
-def test_dealer_turn_should_hide(fixture_gamblers: Tuple[vinte_uno.Gambler, ...]) -> None:
-    """Test if all dealer turn should hide.
-
-    :param fixture_gamblers: A tuple with gambler objects in initial state
-    :type fixture_gamblers: Tuple[vinte_uno.Gambler, ...]
-    """
-    gamblers = fixture_gamblers
-    dealer = vinte_uno.Dealer()
-    dealer.turn(gamblers=set(gamblers))
-    dealer.turn(gamblers=set(gamblers))
-    assert dealer.state == vinte_uno.HIDING
-
-
-def test_dealer_turn_should_expose(  # noqa:WPS218
-    fixture_gamblers: Tuple[vinte_uno.Gambler, ...],  # pylint: disable=bad-continuation
-    fixture_hand: pytest_mock.plugin.MockFixture,  # pylint: disable=bad-continuation
+def test_dealer_turn_should_stay_by_points(
+    fixture_gamblers: List[vinte_uno.Gambler],  # pylint: disable=bad-continuation
+    fixture_deck_pick: pytest_mock.plugin.MockFixture,  # pylint: disable=bad-continuation
 ) -> None:
-    """Test if dealer turn should expose.
+    """Test if dealer turn should stay by non active gamblers states.
 
     :param fixture_gamblers: A tuple with gambler objects in initial state
-    :type fixture_gamblers: Tuple[vinte_uno.Gambler, ...]
-    :param fixture_hand: A set with gambler objects in initial state
-    :type fixture_hand: pytest_mock.plugin.MockFixture
+    :type fixture_gamblers: List[vinte_uno.Gambler]
+    :param fixture_deck_pick: A mocked Deck.pick() method
+    :type fixture_deck_pick: pytest_mock.plugin.MockFixture
     """
     gamblers = fixture_gamblers
-    dealer = vinte_uno.Dealer(credit=1)
-    fixture_hand.return_value = 0
-    dealer.turn(gamblers=set(gamblers))
-    fixture_hand.return_value = 5
-    dealer.turn(gamblers=set(gamblers))
+    dealer = vinte_uno.Dealer(gamblers=gamblers)
+    fixture_deck_pick.side_effect = [
+        vinte_uno.Card(rank='10', weight=10, suit='hearts', image=''),
+        vinte_uno.Card(rank='ace', weight=1, suit='hearts', image=''),
+        vinte_uno.Card(rank='9', weight=9, suit='nine', image=''),
+        vinte_uno.Card(rank='queen', weight=10, suit='hearts', image=''),
+        vinte_uno.Card(rank='10', weight=10, suit='spades', image=''),
+        vinte_uno.Card(rank='king', weight=10, suit='hearts', image=''),
+        vinte_uno.Card(rank='jack', weight=10, suit='diamonds', image=''),
+        vinte_uno.Card(rank='9', weight=9, suit='clubs', image=''),
+    ]
+    dealer.turn()
+    dealer.turn()
+    gamblers[0].stay()
+    gamblers[2].stay()
+    dealer.turn()
+    assert dealer.state == vinte_uno.STAYED
+    assert gamblers[0].credit == 2
+    assert gamblers[1].credit == 3
+    assert gamblers[2].credit == 1
 
-    fixture_hand.return_value = 12
-    gamblers[0].state = vinte_uno.STAYED
-    gamblers[1].state = vinte_uno.TWENTY_ONE
-    gamblers[2].state = vinte_uno.BUSTED
-    dealer.turn(gamblers=set(gamblers))
 
-    assert dealer.state == vinte_uno.EXPOSED
-
-
-def test_dealer_should_stay_after_expose(  # noqa:WPS218
-    fixture_gamblers: Tuple[vinte_uno.Gambler, ...],  # pylint: disable=bad-continuation
-    fixture_hand: pytest_mock.plugin.MockFixture,  # pylint: disable=bad-continuation
+def test_dealer_turn_should_stay_by_gamblers(  # noqa:WPS218
+    fixture_gamblers: List[vinte_uno.Gambler],  # pylint: disable=bad-continuation
+    fixture_deck_pick: pytest_mock.plugin.MockFixture,  # pylint: disable=bad-continuation
 ) -> None:
-    """Test if dealer turn should stay after expose.
+    """Test if dealer turn should stay by non active gamblers states.
 
     :param fixture_gamblers: A tuple with gambler objects in initial state
-    :type fixture_gamblers: Tuple[vinte_uno.Gambler, ...]
-    :param fixture_hand: A set with gambler objects in initial state
-    :type fixture_hand: pytest_mock.plugin.MockFixture
+    :type fixture_gamblers: List[vinte_uno.Gambler]
+    :param fixture_deck_pick: A mocked Deck.pick() method
+    :type fixture_deck_pick: pytest_mock.plugin.MockFixture
     """
     gamblers = fixture_gamblers
-    dealer = vinte_uno.Dealer(credit=1)
-    fixture_hand.return_value = 0
-    dealer.turn(gamblers=set(gamblers))
-    fixture_hand.return_value = 10
-    dealer.turn(gamblers=set(gamblers))
-
-    fixture_hand.return_value = 21
-    gamblers[0].state = vinte_uno.STAYED
-    gamblers[1].state = vinte_uno.TWENTY_ONE
-    gamblers[2].state = vinte_uno.BUSTED
-    dealer.turn(gamblers=set(gamblers))
+    dealer = vinte_uno.Dealer(gamblers=gamblers)
+    fixture_deck_pick.side_effect = [
+        vinte_uno.Card(rank='10', weight=10, suit='diamonds', image=''),
+        vinte_uno.Card(rank='ace', weight=1, suit='diamonds', image=''),
+        vinte_uno.Card(rank='jack', weight=10, suit='diamonds', image=''),
+        vinte_uno.Card(rank='queen', weight=10, suit='hearts', image=''),
+        vinte_uno.Card(rank='10', weight=10, suit='hearts', image=''),
+        vinte_uno.Card(rank='king', weight=10, suit='hearts', image=''),
+        vinte_uno.Card(rank='10', weight=10, suit='clubs', image=''),
+        vinte_uno.Card(rank='6', weight=6, suit='clubs', image=''),
+        vinte_uno.Card(rank='2', weight=2, suit='clubs', image=''),
+        vinte_uno.Card(rank='2', weight=2, suit='spades', image=''),
+    ]
+    dealer.turn()
+    dealer.turn()
+    dealer.turn()
 
     assert dealer.state == vinte_uno.STAYED
-
-
-def test_dealer_turn_should_stay(  # noqa:WPS218
-    fixture_gamblers: Tuple[vinte_uno.Gambler, ...],  # pylint: disable=bad-continuation
-    fixture_hand: pytest_mock.plugin.MockFixture,  # pylint: disable=bad-continuation
-) -> None:
-    """Test if dealer turn should stay.
-
-    :param fixture_gamblers: A tuple with gambler objects in initial state
-    :type fixture_gamblers: Tuple[vinte_uno.Gambler, ...]
-    :param fixture_hand: A set with gambler objects in initial state
-    :type fixture_hand: pytest_mock.plugin.MockFixture
-    """
-    gamblers = fixture_gamblers
-    dealer = vinte_uno.Dealer()
-    fixture_hand.return_value = 0
-    dealer.turn(gamblers=set(gamblers))
-    fixture_hand.return_value = 5
-    dealer.turn(gamblers=set(gamblers))
-    gamblers[0].state = vinte_uno.STAYED
-    gamblers[1].state = vinte_uno.TWENTY_ONE
-    gamblers[2].state = vinte_uno.BUSTED
-    fixture_hand.return_value = 12
-    dealer.turn(gamblers=set(gamblers))
-    fixture_hand.return_value = 20
-    dealer.turn(gamblers=set(gamblers))
-
-    assert dealer.state == vinte_uno.STAYED
+    assert gamblers[0].credit == 0
+    assert gamblers[1].credit == 3
+    assert gamblers[2].credit == 0
 
 
 def test_dealer_turn_should_bust(  # noqa:WPS218
-    fixture_gamblers: Tuple[vinte_uno.Gambler, ...],  # pylint: disable=bad-continuation
-    fixture_hand: pytest_mock.plugin.MockFixture,  # pylint: disable=bad-continuation
+    fixture_gamblers: List[vinte_uno.Gambler],  # pylint: disable=bad-continuation
+    fixture_deck_pick: pytest_mock.plugin.MockFixture,  # pylint: disable=bad-continuation
 ) -> None:
     """Test if dealer turn should bust.
 
     :param fixture_gamblers: A tuple with gambler objects in initial state
-    :type fixture_gamblers: Tuple[vinte_uno.Gambler, ...]
-    :param fixture_hand: A set with gambler objects in initial state
-    :type fixture_hand: pytest_mock.plugin.MockFixture
+    :type fixture_gamblers: List[vinte_uno.Gambler]
+    :param fixture_deck_pick: A fixture with mocked deck pick
+    :type fixture_deck_pick: pytest_mock.plugin.MockFixture
     """
     gamblers = fixture_gamblers
-    dealer = vinte_uno.Dealer()
-    fixture_hand.return_value = 0
-    dealer.turn(gamblers=set(gamblers))
-    fixture_hand.return_value = 5
-    dealer.turn(gamblers=set(gamblers))
-    gamblers[0].state = vinte_uno.STAYED
-    gamblers[1].state = vinte_uno.TWENTY_ONE
-    gamblers[2].state = vinte_uno.BUSTED
-    fixture_hand.return_value = 12
-    dealer.turn(gamblers=set(gamblers))
-    fixture_hand.return_value = 22
-    dealer.turn(gamblers=set(gamblers))
-
+    dealer = vinte_uno.Dealer(gamblers=gamblers)
+    fixture_deck_pick.side_effect = [
+        vinte_uno.Card(rank='10', weight=10, suit='hearts', image=''),
+        vinte_uno.Card(rank='ace', weight=1, suit='hearts', image=''),
+        vinte_uno.Card(rank='jack', weight=10, suit='hearts', image=''),
+        vinte_uno.Card(rank='queen', weight=10, suit='hearts', image=''),
+        vinte_uno.Card(rank='5', weight=5, suit='hearts', image=''),
+        vinte_uno.Card(rank='king', weight=10, suit='hearts', image=''),
+        vinte_uno.Card(rank='10', weight=10, suit='diamonds', image=''),
+        vinte_uno.Card(rank='6', weight=6, suit='diamonds', image=''),
+        vinte_uno.Card(rank='2', weight=2, suit='diamonds', image=''),
+        vinte_uno.Card(rank='8', weight=8, suit='diamonds', image=''),
+    ]
+    dealer.turn()
+    dealer.turn()
+    gamblers[0].stay()
+    dealer.turn()
+    dealer.turn()
     assert dealer.state == vinte_uno.BUSTED
+    assert gamblers[0].state == vinte_uno.STAYED
+    assert gamblers[1].state == vinte_uno.TWENTY_ONE
+    assert gamblers[2].state == vinte_uno.BUSTED
+    assert gamblers[0].credit == 2
+    assert gamblers[1].credit == 3
+    assert gamblers[2].credit == 0
 
 
-def test_round_should_end_successfully(
-    fixture_gamblers: Tuple[vinte_uno.Gambler, ...],  # pylint: disable=bad-continuation
+def test_dealer_show_cards_correctly(
+    fixture_gamblers: List[vinte_uno.Gambler],  # pylint: disable=bad-continuation
 ) -> None:
-    """Test if round should end successfully.
+    """Test of dealer show cards correctly.
 
     :param fixture_gamblers: A tuple with gambler objects in initial state
-    :type fixture_gamblers: Tuple[vinte_uno.Gambler, ...]
+    :type fixture_gamblers: List[vinte_uno.Gambler]
     """
-    gamblers = set(fixture_gamblers)
-    match = vinte_uno.Match()
-    match.start(
-        gamblers=gamblers,
-        dealer=vinte_uno.Dealer(credit=1),
-    )
+    dealer = vinte_uno.Dealer(gamblers=fixture_gamblers)
+    dealer.cards = [
+        vinte_uno.Card(rank='8', weight=8, suit='diamonds', image=''),
+        vinte_uno.Card(rank='10', weight=10, suit='spades', image=''),
+        vinte_uno.Card(rank='ace', weight=1, suit='spades', image=''),
+    ]
+    dealer.state = vinte_uno.HIDING
+    assert dealer.show() == [{
+        'suit': 'diamonds',
+        'rank': '8',
+        'weight': 8,
+        'image': '',
+    }]
