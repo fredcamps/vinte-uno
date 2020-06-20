@@ -3,7 +3,6 @@ This module contains the core functionality of this program.
 """
 import random
 from abc import ABCMeta, abstractmethod
-from collections import Counter
 from typing import Dict, Iterator, List, NamedTuple, Set, Tuple
 
 from transitions import Machine
@@ -411,6 +410,7 @@ class Dealer(Player):
         if not gamblers:
             return
 
+        # TODO: Must improve this logic
         max_score = max(gamblers, key=lambda element: element.hand).hand
         self.gamblers = list(set(self.gamblers) - set(gamblers))
         for idx, gambler in enumerate(gamblers):

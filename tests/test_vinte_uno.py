@@ -324,7 +324,7 @@ def test_dealer_show_cards_correctly(
     dealer.cards = [
         vinte_uno.Card(rank='8', weight=8, suit='diamonds', image=''),
         vinte_uno.Card(rank='10', weight=10, suit='spades', image=''),
-        vinte_uno.Card(rank='ace', weight=1, suit='spades', image=''),
+        # vinte_uno.Card(rank='ace', weight=1, suit='spades', image=''),
     ]
     dealer.state = vinte_uno.HIDING
     assert dealer.show() == [{
