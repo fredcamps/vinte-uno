@@ -87,6 +87,15 @@ class Cards:
             ('King', 10),
         }
 
+    def generate(self) -> Iterator[Card]:
+        """Generates deck cards.
+
+        :yield: A generator with Card objects
+        :rtype: Iterator[Card]
+        """
+        for suit in self.suits:
+            yield from self._helper(suit=suit)
+
     def _helper(self, suit: str) -> Iterator[Card]:
         rank_attrs = {}
         for rank in self.ranks:
@@ -99,15 +108,6 @@ class Cards:
                 weight=int(rank_attrs['weight']),
                 image=image,
             )
-
-    def generate(self) -> Iterator[Card]:
-        """Generates deck cards.
-
-        :yield: A generator with Card objects
-        :rtype: Iterator[Card]
-        """
-        for suit in self.suits:
-            yield from self._helper(suit=suit)
 
 
 class Deck:
@@ -339,22 +339,6 @@ class Dealer(Player):
             after=['after_stay'],
         )
 
-    def _hit(self) -> None:
-        for gambler in self.gamblers:
-            gambler.hit(deck=self.deck)
-            if gambler.state != GAMING:
-                continue
-
-            if gambler.hand > TWENTY_ONE_RANK_POINTS:
-                gambler.bust()
-
-            if gambler.hand == TWENTY_ONE_RANK_POINTS:
-                gambler.win()
-                gambler.credit += self.credit
-                self.credit -= self.credit
-
-        self.hit(deck=self.deck)
-
     def turn(self) -> None:
         """Players hits a card and turns.
         """
@@ -466,3 +450,19 @@ class Dealer(Player):
             return [cards[0]]
 
         return cards
+
+    def _hit(self) -> None:
+        for gambler in self.gamblers:
+            gambler.hit(deck=self.deck)
+            if gambler.state != GAMING:
+                continue
+
+            if gambler.hand > TWENTY_ONE_RANK_POINTS:
+                gambler.bust()
+
+            if gambler.hand == TWENTY_ONE_RANK_POINTS:
+                gambler.win()
+                gambler.credit += self.credit
+                self.credit -= self.credit
+
+        self.hit(deck=self.deck)
