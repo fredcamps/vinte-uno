@@ -5,7 +5,6 @@ description = "A simple blackjack game made in Python3"
 authors = ["Fred Campos <fred.tecnologia@gmail.com>"]
 
 [tool.poetry.dependencies]
-pip = "^20.1"
 python = "^3.6.1"
 transitions = "^0.8.1"
 
