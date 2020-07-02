@@ -3,19 +3,19 @@ Vinte Uno
 =========
 
 
-.. image:: https://img.shields.io/pypi/v/vinte_uno.svg
-        :target: https://pypi.python.org/pypi/vinte_uno
+.. image:: https://img.shields.io/pypi/v/vinte-uno.svg
+        :target: https://pypi.python.org/pypi/vinte-uno
 
-.. image:: https://img.shields.io/travis/fredcamps/vinte_uno.svg
-        :target: https://travis-ci.com/fredcamps/vinte_uno
+.. image:: https://img.shields.io/travis/fredcamps/vinte-uno.svg
+        :target: https://travis-ci.com/fredcamps/vinte-uno
 
 .. image:: https://readthedocs.org/projects/vinte-uno/badge/?version=latest
         :target: https://vinte-uno.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
 
-.. image:: https://pyup.io/repos/github/fredcamps/vinte_uno/shield.svg
-     :target: https://pyup.io/repos/github/fredcamps/vinte_uno/
+.. image:: https://pyup.io/repos/github/fredcamps/vinte-uno/shield.svg
+     :target: https://pyup.io/repos/github/fredcamps/vinte-uno/
      :alt: Updates
 
 
